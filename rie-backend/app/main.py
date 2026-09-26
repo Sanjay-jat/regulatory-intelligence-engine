@@ -29,7 +29,11 @@ async def global_handler(request: Request, exc: Exception):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], # React dev server; add deployed frontend URL later
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://regulatory-intelligence-engine-two.vercel.app",
+    ],
     allow_credentials=True, 
     allow_methods=["*"],
     allow_headers=["*"],
