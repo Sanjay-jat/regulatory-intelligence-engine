@@ -8,7 +8,8 @@ class setting(BaseSettings):
     @model_validator(mode="after")
     def check_gemini_key(self):
         if self.LLM_PROVIDER == "gemini" and not self.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY required when LLM_PROVIDER=gemini")
+            import logging
+            logging.warning("No server-side GEMINI_API_KEY set — running in BYOK-only mode.")
         return self
     ## swtich LLM provider
     LLM_PROVIDER: Literal["gemini","ollama"] = "ollama"
