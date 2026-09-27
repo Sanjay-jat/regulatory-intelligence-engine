@@ -27,17 +27,22 @@ async def query(
     x_user_gemini_key: Optional[str] = Header(default=None),
     _: None = Depends(verify_api_key),
 ):
-    if settings.LLM_PROVIDER == "gemini" and not settings.GEMINI_API_KEY and not x_user_gemini_key:
-        return QueryResponse(
-            thread_id=body.thread_id or "",
-            answer="This app runs on your own Gemini API key. Add it from the key icon before asking a question.",
-            citations=[],
-            amendment_diff=None,
-            execution_step_logs=["No Gemini API key available (no server key configured, no BYOK key provided) — request skipped."],
-        )
     thread_id = body.thread_id
     if not thread_id or not thread_service.thread_exists(thread_id):
         thread_id = thread_service.create_thread()
+
+    if settings.LLM_PROVIDER == "gemini" and not settings.GEMINI_API_KEY and not x_user_gemini_key:
+        result = {
+            "answer": "This app runs on your own Gemini API key. Add it from the key icon before asking a question.",
+            "citations": [],
+            "amendment_diff": None,
+            "execution_step_logs": ["No Gemini API key available (no server key configured, no BYOK key provided) — request skipped."],
+        }
+        try:
+            thread_service.save_message(thread_id, body.query, result)
+        except Exception as e:
+            logger.warning(f"Failed to save message to thread {thread_id}: {e}")
+        return QueryResponse(thread_id=thread_id, **result)
 
     history = thread_service.get_recent_history(thread_id, limit=3)
 
