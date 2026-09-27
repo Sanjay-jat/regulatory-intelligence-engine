@@ -5,6 +5,8 @@ from app.services.faiss_service import faiss_service
 from app.models.schemas import CitationSource, AmendmentDiff
 import traceback
 from app.core.request_context import get_api_key
+import logging
+logger = logging.getLogger("nodes")
 
 MAX_LOOPS = 2
 
@@ -65,7 +67,8 @@ def route_intent(state: AgentState) -> AgentState:
     except Exception as e:
         state["translated_intent"] = state["query"]
         state["query_type"] = "simple"
-        _log(state, f"Node 1 ERROR: {str(e)} | trace: {traceback.format_exc(limit=2)}")
+        logger.error(f"Node 1 failed: {e}", exc_info=True)
+        _log(state, f"Node 1 ERROR: {str(e)}")
     return state
 
 
@@ -97,7 +100,8 @@ def search_index(state: AgentState) -> AgentState:
         ]
     except Exception as e:
         state["retrieved_chunks"] = []
-        _log(state, f"Node 2 ERROR: {str(e)} | trace: {traceback.format_exc(limit=2)}")
+        logger.error(f"Node 2 failed: {e}", exc_info=True)
+        _log(state, f"Node 2 ERROR: {str(e)}")
     return state
 
 
@@ -136,7 +140,8 @@ def resolve_conflict(state: AgentState) -> AgentState:
             state["resolved_context"] = "\n\n".join(c["text"] for c in active) or None
     except Exception as e:
         state["resolved_context"] = None
-        _log(state, f"Node 3 ERROR: {str(e)} | trace: {traceback.format_exc(limit=2)}")
+        logger.error(f"Node 3 failed: {e}", exc_info=True)
+        _log(state, f"Node 3 ERROR: {str(e)}")
     return state
 
 
@@ -220,11 +225,14 @@ def synthesize_answer(state: AgentState) -> AgentState:
     except Exception as e:
         error_str = str(e)
         if "RESOURCE_EXHAUSTED" in error_str or "429" in error_str:
-            state["answer"] = "The AI service has hit its usage limit right now. Please try again in a bit, or check your API key's quota if you added your own."
+            state["answer"] = "The AI service has hit its usage limit right now. Please try again in a bit, or check your API key's quota."
+        elif "DEADLINE_EXCEEDED" in error_str or "504" in error_str:
+            state["answer"] = "The AI service took too long to respond. Please try asking again."
         else:
             state["answer"] = "Data not found in official SEBI/RBI circular database."
         state["citations"] = []
-        _log(state, f"Node 4 ERROR: {str(e)} | trace: {traceback.format_exc(limit=2)}")
+        logger.error(f"Node 4 failed: {e}", exc_info=True)
+        _log(state, f"Node 4 ERROR: {str(e)}")
     return state
 
 
