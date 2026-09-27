@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from langchain_community.vectorstores import FAISS
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.documents import Document
 from app.core.config import settings
 from app.services.llm_service import get_embedder
@@ -13,18 +14,30 @@ META_FILE = "index_meta.json"
 
 class FaissService:
     def __init__(self):
-        self.embedder = get_embedder()
         self.index_path = settings.FAISS_INDEX_PATH
         self._check_provider_match()
+        self.embedder = self._boot_embedder()
         self.store: FAISS | None = self._load_if_exists()
+
+    def _boot_embedder(self):
+        """Embedder used at boot to satisfy FAISS.load_local's interface.
+        load_local never calls the API — it only deserializes the index —
+        so this is safe even with no server-side key. Real per-request
+        embedding always goes through search()/add_circular()'s
+        api_key_override, which resolves a fresh, real embedder."""
+        try:
+            return get_embedder()
+        except ValueError:
+            logger.warning("No server-side embedder key — booting in BYOK-only mode.")
+            return GoogleGenerativeAIEmbeddings(
+                model="models/gemini-embedding-001",
+                google_api_key="placeholder",
+            )
 
     def _meta_path(self) -> str:
         return os.path.join(self.index_path, META_FILE)
 
     def _check_provider_match(self) -> None:
-        """If an index already exists, confirm it was built with the same
-        LLM_PROVIDER. Mismatched embedding dimensions crash FAISS with a
-        cryptic error otherwise — fail clearly instead."""
         meta_path = self._meta_path()
         if not os.path.exists(meta_path):
             return
@@ -50,9 +63,8 @@ class FaissService:
             )
         return None
 
-    def add_circular(self, circular: StructuredRegulatoryCircular, source_url: str | None = None) -> dict:
-        """Embed every section, add to index. If this circular_id already
-        exists, replace its old chunks instead of duplicating them."""
+    def add_circular(self, circular: StructuredRegulatoryCircular, source_url: str | None = None,
+                      api_key_override: str | None = None) -> dict:
         replaced = self._remove_existing(circular.circular_id)
 
         docs = [
@@ -71,10 +83,12 @@ class FaissService:
             for section in circular.sections
         ]
 
+        embedder = get_embedder(api_key_override=api_key_override) if api_key_override else self.embedder
+
         if self.store is None:
-            self.store = FAISS.from_documents(docs, self.embedder)
+            self.store = FAISS.from_documents(docs, embedder)
         else:
-            self.store.add_documents(docs)
+            self.store.add_documents(docs, embedding=embedder)
 
         supersession_matched = False
         if circular.supersedes:
@@ -91,7 +105,6 @@ class FaissService:
         }
 
     def _remove_existing(self, circular_id: str) -> bool:
-        """If circular_id already in index, delete its old chunks first."""
         if self.store is None:
             return False
         ids_to_remove = [
@@ -106,10 +119,6 @@ class FaissService:
         return False
 
     def _mark_superseded(self, old_circular_id: str) -> bool:
-        """Flip is_superseded=True on chunks belonging to old circular.
-        Tries exact match first, then a normalized loose match, since OCR
-        noise can shift a character (e.g. '1' vs 'I'). Logs a warning if
-        nothing matches at all, instead of failing silently."""
         if self.store is None:
             return False
 
@@ -134,18 +143,21 @@ class FaissService:
         return "".join(s.split()).lower().replace("i", "1").replace("l", "1")
 
     def search(self, query: str, filter_body: str | None = None, k: int = 4,
-           date_from: str | None = None, date_to: str | None = None):
+               date_from: str | None = None, date_to: str | None = None,
+               api_key_override: str | None = None):
         if self.store is None:
             return []
+
+        embedder = get_embedder(api_key_override=api_key_override) if api_key_override else self.embedder
+        query_vector = embedder.embed_query(query)
 
         filter_dict = {"regulatory_body": filter_body} if filter_body else None
 
         if not date_from and not date_to:
-            return self.store.similarity_search_with_score(query, k=k, filter=filter_dict)
+            return self.store.similarity_search_with_score_by_vector(query_vector, k=k, filter=filter_dict)
 
-        # date range needs post-filtering — FAISS's filter dict only does exact match
         over_fetch_k = k * 5
-        results = self.store.similarity_search_with_score(query, k=over_fetch_k, filter=filter_dict)
+        results = self.store.similarity_search_with_score_by_vector(query_vector, k=over_fetch_k, filter=filter_dict)
 
         filtered = [
             (doc, score) for doc, score in results
