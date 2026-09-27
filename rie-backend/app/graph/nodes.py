@@ -83,12 +83,12 @@ def search_index(state: AgentState) -> AgentState:
         date_to = state.get("date_to")
 
         if state.get("query_type") == "comparison" and not state.get("filter_body"):
-            sebi_hits = faiss_service.search(query_text, filter_body="SEBI", k=2, date_from=date_from, date_to=date_to)
-            rbi_hits = faiss_service.search(query_text, filter_body="RBI", k=2, date_from=date_from, date_to=date_to)
+            sebi_hits = faiss_service.search(query_text, filter_body="SEBI", k=2, date_from=date_from, date_to=date_to, api_key_override=get_api_key())
+            rbi_hits = faiss_service.search(query_text, filter_body="RBI", k=2, date_from=date_from, date_to=date_to, api_key_override=get_api_key())
             results = sebi_hits + rbi_hits
             _log(state, f"Node 2: Comparison query — multi-hop, {len(sebi_hits)} SEBI + {len(rbi_hits)} RBI nodes")
         else:
-            results = faiss_service.search(query_text, filter_body=state.get("filter_body"), k=4, date_from=date_from, date_to=date_to)
+            results = faiss_service.search(query_text, filter_body=state.get("filter_body"), k=4, date_from=date_from, date_to=date_to, api_key_override=get_api_key())
             _log(state, f"Node 2: Index search pulled {len(results)} context nodes")
 
         state["retrieved_chunks"] = [
