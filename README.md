@@ -4,8 +4,7 @@
 
 **Ask SEBI or RBI a question in plain English (or Hinglish). Get the rule, the source, and what changed — not just a wall of PDF text.**
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-2F4F3F?style=for-the-badge)](#)
-
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-2F4F3F?style=for-the-badge)](https://regulatory-intelligence-engine-two.vercel.app/)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![Python](https://img.shields.io/badge/Python_3.11-3776AB?style=flat-square&logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black)
