@@ -7,6 +7,7 @@ from app.services import thread_service
 from app.middleware.rate_limit import limiter, RATE_LIMIT
 from app.middleware.auth import verify_api_key
 from app.core.request_context import set_api_key, reset_api_key
+from app.core.config import settings
 import logging
 
 router = APIRouter(prefix="/api/v1")
@@ -26,6 +27,14 @@ async def query(
     x_user_gemini_key: Optional[str] = Header(default=None),
     _: None = Depends(verify_api_key),
 ):
+    if settings.LLM_PROVIDER == "gemini" and not settings.GEMINI_API_KEY and not x_user_gemini_key:
+        return QueryResponse(
+            thread_id=body.thread_id or "",
+            answer="This app runs on your own Gemini API key. Add it from the key icon before asking a question.",
+            citations=[],
+            amendment_diff=None,
+            execution_step_logs=["No Gemini API key available (no server key configured, no BYOK key provided) — request skipped."],
+        )
     thread_id = body.thread_id
     if not thread_id or not thread_service.thread_exists(thread_id):
         thread_id = thread_service.create_thread()
