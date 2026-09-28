@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useSearchParams, useNavigate, Link, useLocation } from 'react-router-dom'
 import { sendQuery, getThread, listThreads, deleteThread } from '../lib/api'
 import { Search, GitCompare, Plus, Trash2, PanelLeftClose, PanelLeftOpen, KeyRound } from 'lucide-react'
+import { getKey, saveKey, clearKey } from '../lib/apiKey'
 
 const EXAMPLE_QUERIES = [
   'Modified nomination norms for demat accounts',
@@ -21,18 +22,7 @@ function presetToDateFrom(days) {
   d.setDate(d.getDate() - days)
   return d.toISOString().split('T')[0]
 }
-function getStoredGeminiKey() {
-  const key = localStorage.getItem('gemini_api_key')
-  const savedAt = localStorage.getItem('gemini_api_key_saved_at')
-  if (!key || !savedAt) return null
-  const ONE_DAY_MS = 24 * 60 * 60 * 1000
-  if (Date.now() - Number(savedAt) > ONE_DAY_MS) {
-    localStorage.removeItem('gemini_api_key')
-    localStorage.removeItem('gemini_api_key_saved_at')
-    return null
-  }
-  return key
-}
+
 
 export default function Chat() {
   const [messages, setMessages] = useState([])
@@ -101,7 +91,7 @@ export default function Chat() {
 
     try {
       const dateFrom = presetToDateFrom(DATE_PRESETS[datePreset])
-      const userGeminiKey = getStoredGeminiKey()
+      const userGeminiKey = getKey()
       const result = await sendQuery(query, threadId, filterBody, dateFrom, null, userGeminiKey)
       setThreadId(result.thread_id)
 
@@ -371,16 +361,11 @@ export default function Chat() {
 }
 
 function ApiKeyModal({ onClose }) {
-  const [key, setKey] = useState(localStorage.getItem('gemini_api_key') || '')
+  const [key, setKey] = useState(getKey())
 
   function save() {
-    if (key.trim()) {
-      localStorage.setItem('gemini_api_key', key.trim())
-      localStorage.setItem('gemini_api_key_saved_at', Date.now().toString())
-    } else {
-      localStorage.removeItem('gemini_api_key')
-      localStorage.removeItem('gemini_api_key_saved_at')
-    }
+    if (key.trim()) saveKey(key.trim())
+    else clearKey()
     onClose()
   }
 

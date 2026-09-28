@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 import { KeyRound } from 'lucide-react'
+import { getKey, saveKey, clearKey } from '../lib/apiKey'
 
 export default function Header() {
   const location = useLocation()
@@ -51,16 +52,11 @@ export default function Header() {
 }
 
 function ApiKeyModal({ onClose }) {
-  const [key, setKey] = useState(localStorage.getItem('gemini_api_key') || '')
+  const [key, setKey] = useState(getKey())
 
   function save() {
-    if (key.trim()) {
-      localStorage.setItem('gemini_api_key', key.trim())
-      localStorage.setItem('gemini_api_key_saved_at', Date.now().toString())
-    } else {
-      localStorage.removeItem('gemini_api_key')
-      localStorage.removeItem('gemini_api_key_saved_at')
-    }
+    if (key.trim()) saveKey(key.trim())
+    else clearKey()
     onClose()
   }
 
