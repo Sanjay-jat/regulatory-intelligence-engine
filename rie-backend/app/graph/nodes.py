@@ -14,7 +14,16 @@ MAX_LOOPS = 2
 def _log(state: AgentState, message: str) -> None:
     state["execution_step_logs"].append(message)
 
-
+def _classify_error(error_str: str) -> str | None:
+    if "UNAVAILABLE" in error_str or "503" in error_str:
+        return "The AI model is currently experiencing high demand. Please try again in a moment."
+    if "API_KEY_INVALID" in error_str or "INVALID_ARGUMENT" in error_str or "400" in error_str:
+        return "Your API key appears to be invalid. Please check the key and try again."
+    if "RESOURCE_EXHAUSTED" in error_str or "429" in error_str:
+        return "The AI service has hit its usage limit right now. Please try again in a bit, or check your API key's quota."
+    if "DEADLINE_EXCEEDED" in error_str or "504" in error_str:
+        return "The AI service took too long to respond. Please try asking again."
+    return None
 # ---------- Node 1: Route / Intent ----------
 
 def route_intent(state: AgentState) -> AgentState:
@@ -67,6 +76,7 @@ def route_intent(state: AgentState) -> AgentState:
     except Exception as e:
         state["translated_intent"] = state["query"]
         state["query_type"] = "simple"
+        state["error"] = _classify_error(str(e))
         logger.error(f"Node 1 failed: {e}", exc_info=True)
         _log(state, f"Node 1 ERROR: {str(e)}")
     return state
@@ -100,6 +110,8 @@ def search_index(state: AgentState) -> AgentState:
         ]
     except Exception as e:
         state["retrieved_chunks"] = []
+        if not state.get("error"):
+            state["error"] = _classify_error(str(e))
         logger.error(f"Node 2 failed: {e}", exc_info=True)
         _log(state, f"Node 2 ERROR: {str(e)}")
     return state
@@ -157,7 +169,7 @@ def synthesize_answer(state: AgentState) -> AgentState:
             return state
 
         if not state["resolved_context"]:
-            state["answer"] = "Data not found in official SEBI/RBI circular database."
+            state["answer"] = state.get("error") or "Data not found in official SEBI/RBI circular database."
             state["citations"] = []
             _log(state, "Node 4: No grounded context — returned hallucination-safe fallback")
             return state
@@ -223,17 +235,7 @@ def synthesize_answer(state: AgentState) -> AgentState:
 
         _log(state, f"Node 4: Answer synthesized from {len(active_chunks)} active source(s), {verified_count} verified")
     except Exception as e:
-        error_str = str(e)
-        if "RESOURCE_EXHAUSTED" in error_str or "429" in error_str:
-            state["answer"] = "The AI service has hit its usage limit right now. Please try again in a bit, or check your API key's quota."
-        elif "DEADLINE_EXCEEDED" in error_str or "504" in error_str:
-            state["answer"] = "The AI service took too long to respond. Please try asking again."
-        elif "UNAVAILABLE" in error_str or "503" in error_str:
-            state["answer"] = "The AI model is currently experiencing high demand. Please try again in a moment."
-        elif "API_KEY_INVALID" in error_str or "INVALID_ARGUMENT" in error_str or "400" in error_str:
-            state["answer"] = "Your API key appears to be invalid. Please check the key and try again."
-        else:
-            state["answer"] = "Data not found in official SEBI/RBI circular database."
+        state["answer"] = _classify_error(str(e)) or "Data not found in official SEBI/RBI circular database."
         state["citations"] = []
         logger.error(f"Node 4 failed: {e}", exc_info=True)
         _log(state, f"Node 4 ERROR: {str(e)}")
