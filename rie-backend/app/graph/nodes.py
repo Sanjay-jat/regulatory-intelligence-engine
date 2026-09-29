@@ -228,6 +228,10 @@ def synthesize_answer(state: AgentState) -> AgentState:
             state["answer"] = "The AI service has hit its usage limit right now. Please try again in a bit, or check your API key's quota."
         elif "DEADLINE_EXCEEDED" in error_str or "504" in error_str:
             state["answer"] = "The AI service took too long to respond. Please try asking again."
+        elif "UNAVAILABLE" in error_str or "503" in error_str:
+            state["answer"] = "The AI model is currently experiencing high demand. Please try again in a moment."
+        elif "API_KEY_INVALID" in error_str or "INVALID_ARGUMENT" in error_str or "400" in error_str:
+            state["answer"] = "Your API key appears to be invalid. Please check the key and try again."
         else:
             state["answer"] = "Data not found in official SEBI/RBI circular database."
         state["citations"] = []
