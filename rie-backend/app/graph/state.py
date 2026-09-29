@@ -23,4 +23,5 @@ class AgentState(TypedDict):
     # --- guardrails / transparency ---
     execution_step_logs: List[str]
     loop_count: int                      # incremented each retry, checked against max_loops=4
+    error: Optional[str] 
     

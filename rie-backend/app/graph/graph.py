@@ -18,6 +18,8 @@ from app.graph.nodes import (
 def should_retry(state: AgentState) -> str:
     if state.get("query_type") == "chitchat":
         return "proceed"
+    if state.get("error"):
+        return "proceed"
     no_results = len(state["retrieved_chunks"]) == 0
     under_budget = state.get("loop_count", 0) < MAX_LOOPS
     if no_results and under_budget:

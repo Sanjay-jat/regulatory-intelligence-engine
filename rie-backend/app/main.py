@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.services.thread_service import init_tables
 from app.services.dedupe_service import init_dedupe_table
 import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -18,6 +19,7 @@ if settings.LANGCHAIN_TRACING_V2:
     os.environ["LANGCHAIN_PROJECT"] = settings.LANGCHAIN_PROJECT
 
 app = FastAPI(title="Regulatory Intelligence Engine")
+logging.info("Starting the Regulatory Intelligence Engine...")
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

@@ -3,7 +3,6 @@ from app.graph.state import AgentState
 from app.services.llm_service import get_llm
 from app.services.faiss_service import faiss_service
 from app.models.schemas import CitationSource, AmendmentDiff
-import traceback
 from app.core.request_context import get_api_key
 import logging
 logger = logging.getLogger("nodes")
@@ -27,6 +26,7 @@ def _classify_error(error_str: str) -> str | None:
 # ---------- Node 1: Route / Intent ----------
 
 def route_intent(state: AgentState) -> AgentState:
+    state["error"] = None
     try:
         llm = get_llm(task="fast", api_key_override=get_api_key())
 
@@ -78,7 +78,7 @@ def route_intent(state: AgentState) -> AgentState:
         state["query_type"] = "simple"
         state["error"] = _classify_error(str(e))
         logger.error(f"Node 1 failed: {e}", exc_info=True)
-        _log(state, f"Node 1 ERROR: {str(e)}")
+        _log(state, f"Node 1 ERROR: {state['error'] or 'Unexpected failure, see server logs'}")
     return state
 
 
@@ -113,7 +113,7 @@ def search_index(state: AgentState) -> AgentState:
         if not state.get("error"):
             state["error"] = _classify_error(str(e))
         logger.error(f"Node 2 failed: {e}", exc_info=True)
-        _log(state, f"Node 2 ERROR: {str(e)}")
+        _log(state, f"Node 2 ERROR: {state['error'] or 'Unexpected failure, see server logs'}")
     return state
 
 
@@ -235,10 +235,11 @@ def synthesize_answer(state: AgentState) -> AgentState:
 
         _log(state, f"Node 4: Answer synthesized from {len(active_chunks)} active source(s), {verified_count} verified")
     except Exception as e:
-        state["answer"] = _classify_error(str(e)) or "Data not found in official SEBI/RBI circular database."
+        state["error"] = _classify_error(str(e))
+        state["answer"] = state["error"] or "Data not found in official SEBI/RBI circular database."
         state["citations"] = []
         logger.error(f"Node 4 failed: {e}", exc_info=True)
-        _log(state, f"Node 4 ERROR: {str(e)}")
+        _log(state, f"Node 4 ERROR: {state['error'] or 'Unexpected failure, see server logs'}")
     return state
 
 
